@@ -52,12 +52,13 @@ model VerificationToken {
 }
 
 model SeedanceAccount {
-  id        String           @id @default(cuid())
-  name      String           @unique
-  snapshots CreditSnapshot[]
-  anomalies AnomalyEvent[]
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id          String           @id @default(cuid())
+  name        String           @unique
+  snapshots   CreditSnapshot[]
+  anomalies   AnomalyEvent[]
+  dailyUsages DailyUsage[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 }
 
 model FetchRun {
@@ -97,6 +98,29 @@ model CreditSnapshot {
   @@index([fetchedAt])
 }
 
+model DailyUsage {
+  id                 String          @id @default(cuid())
+  accountId          String
+  account            SeedanceAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  accountName        String
+  date               DateTime        @db.Date
+  usage              Int             @default(0)
+  resetDetected      Boolean         @default(false)
+  resetCount         Int             @default(0)
+  resetDetectedAt    DateTime?
+  previousSnapshotId String?
+  currentSnapshotId  String?
+  previousTotal      Int?
+  currentTotal       Int?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@unique([accountId, date])
+  @@index([accountName, date])
+  @@index([date])
+  @@index([resetDetectedAt])
+}
+
 model AnomalyEvent {
   id          String           @id @default(cuid())
   fetchRunId  String
@@ -114,21 +138,6 @@ model AnomalyEvent {
   @@index([accountName, fetchedAt])
   @@index([fetchRunId])
   @@index([fetchedAt])
-}
-
-model DailyConsumption {
-  id          String   @id @default(cuid())
-  accountId   String?
-  accountName String
-  date        DateTime @db.Date
-  consumption Int
-  isResetDay  Boolean  @default(false)
-  note        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([accountName, date])
-  @@index([date])
 }
 
 model SystemConfig {

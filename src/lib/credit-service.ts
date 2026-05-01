@@ -1,6 +1,7 @@
 import { FetchRunStatus } from '@prisma/client';
 
 import { parseCreditApiResponse } from '@/lib/credit-parser';
+import { calculateDailyUsageForSnapshot } from '@/lib/daily-usage';
 import { prisma } from '@/lib/prisma';
 
 const DEFAULT_CREDIT_API_URL = 'https://chorify3.sligenai.cn/jmapi/credit';
@@ -29,7 +30,6 @@ export async function collectCreditSnapshots() {
     const payload: unknown = await response.json();
     const items = parseCreditApiResponse(payload);
     let successCount = 0;
-    let anomalyCount = 0;
 
     for (const item of items) {
       const account = await prisma.seedanceAccount.upsert({
@@ -39,7 +39,7 @@ export async function collectCreditSnapshots() {
       });
 
       if (item.parsedCredit && !item.anomalyReason) {
-        await prisma.creditSnapshot.create({
+        const snapshot = await prisma.creditSnapshot.create({
           data: {
             fetchRunId: fetchRun.id,
             accountId: account.id,
@@ -50,7 +50,11 @@ export async function collectCreditSnapshots() {
             fetchedAt: item.fetchedAt,
             rawStdout: item.stdout,
           },
+          include: {
+            account: true,
+          },
         });
+        await calculateDailyUsageForSnapshot(snapshot, fetchRun.id);
         successCount += 1;
         continue;
       }
@@ -67,10 +71,14 @@ export async function collectCreditSnapshots() {
           fetchedAt: item.fetchedAt,
         },
       });
-      anomalyCount += 1;
     }
 
-    const status = anomalyCount === 0 ? FetchRunStatus.SUCCEEDED : FetchRunStatus.PARTIAL;
+    const persistedAnomalyCount = await prisma.anomalyEvent.count({
+      where: {
+        fetchRunId: fetchRun.id,
+      },
+    });
+    const status = persistedAnomalyCount === 0 ? FetchRunStatus.SUCCEEDED : FetchRunStatus.PARTIAL;
 
     return prisma.fetchRun.update({
       where: { id: fetchRun.id },
@@ -78,7 +86,7 @@ export async function collectCreditSnapshots() {
         status,
         totalCount: items.length,
         successCount,
-        anomalyCount,
+        anomalyCount: persistedAnomalyCount,
         rawJson: JSON.stringify(payload),
         completedAt: new Date(),
       },
