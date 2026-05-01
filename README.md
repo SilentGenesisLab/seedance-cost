@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# seedance-cost
 
-## Getting Started
+Seedance2.0 account credit consumption dashboard. The MVP stores credit snapshots, calculates daily usage/reset events, and exposes authenticated dashboard pages. Video URL tracking is intentionally out of scope.
 
-First, run the development server:
+## Tech stack
+
+- Next.js 14 App Router
+- TypeScript
+- Tailwind CSS
+- Prisma v6 + PostgreSQL
+- Auth.js / next-auth credentials login
+- Recharts
+
+## Local development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+cp .env.example .env
+pnpm db:generate
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create an admin password hash with bcrypt and set `ADMIN_PASSWORD_HASH` in `.env`. Do not commit `.env`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Required environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Name                  | Purpose                         |
+| --------------------- | ------------------------------- |
+| `DATABASE_URL`        | PostgreSQL connection string    |
+| `NEXTAUTH_URL`        | Public app URL                  |
+| `NEXTAUTH_SECRET`     | Auth.js signing secret          |
+| `ADMIN_EMAIL`         | Admin login email               |
+| `ADMIN_PASSWORD_HASH` | bcrypt hash for admin password  |
+| `SEEDANCE_API_URL`    | Credit API endpoint             |
+| `RESET_AMOUNT`        | Reset threshold reference value |
 
-## Learn More
+## Prisma flow
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm db:generate
+pnpm db:migrate
+pnpm db:deploy
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+For production deployments, run `pnpm db:deploy` after the image is deployed and before serving traffic.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Validation
 
-## Deploy on Vercel
+Current validation commands:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pnpm run lint
+pnpm exec tsc --noEmit
+pnpm run format:check
+pnpm exec prisma generate
+pnpm run build
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+There is no test script yet in `package.json`.
+
+## Docker
+
+Build image:
+
+```bash
+docker build -t seedance-cost:latest .
+```
+
+Run container:
+
+```bash
+docker run --rm -p 3000:3000 --env-file .env seedance-cost:latest
+```
