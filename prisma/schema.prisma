@@ -8,16 +8,16 @@ datasource db {
 }
 
 model User {
-  id            String        @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String?
-  email         String?       @unique
+  email         String?   @unique
   emailVerified DateTime?
   image         String?
-  accounts      AuthAccount[]
+  accounts      Account[]
   sessions      Session[]
 }
 
-model AuthAccount {
+model Account {
   id                String  @id @default(cuid())
   userId            String
   type              String
@@ -52,16 +52,36 @@ model VerificationToken {
 }
 
 model SeedanceAccount {
-  id        String             @id @default(cuid())
-  name      String             @unique
+  id        String           @id @default(cuid())
+  name      String           @unique
   snapshots CreditSnapshot[]
-  errors    CreditFetchError[]
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  anomalies AnomalyEvent[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model FetchRun {
+  id           String           @id @default(cuid())
+  sourceUrl    String
+  status       FetchRunStatus   @default(RUNNING)
+  totalCount   Int              @default(0)
+  successCount Int              @default(0)
+  anomalyCount Int              @default(0)
+  errorMessage String?          @db.Text
+  rawJson      String?          @db.Text
+  startedAt    DateTime         @default(now())
+  completedAt  DateTime?
+  snapshots    CreditSnapshot[]
+  anomalies    AnomalyEvent[]
+
+  @@index([startedAt])
+  @@index([status])
 }
 
 model CreditSnapshot {
   id             String          @id @default(cuid())
+  fetchRunId     String
+  fetchRun       FetchRun        @relation(fields: [fetchRunId], references: [id], onDelete: Cascade)
   accountId      String
   account        SeedanceAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   vipCredit      Int
@@ -73,21 +93,26 @@ model CreditSnapshot {
   createdAt      DateTime        @default(now())
 
   @@index([accountId, fetchedAt])
+  @@index([fetchRunId])
   @@index([fetchedAt])
 }
 
-model CreditFetchError {
+model AnomalyEvent {
   id          String           @id @default(cuid())
+  fetchRunId  String
+  fetchRun    FetchRun         @relation(fields: [fetchRunId], references: [id], onDelete: Cascade)
   accountId   String?
   account     SeedanceAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   accountName String
-  exitCode    Int
+  reason      String
+  exitCode    Int?
   stdout      String           @db.Text
   stderr      String           @db.Text
   fetchedAt   DateTime
   createdAt   DateTime         @default(now())
 
   @@index([accountName, fetchedAt])
+  @@index([fetchRunId])
   @@index([fetchedAt])
 }
 
@@ -111,4 +136,11 @@ model SystemConfig {
   key       String   @unique
   value     String
   updatedAt DateTime @updatedAt
+}
+
+enum FetchRunStatus {
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
 }
