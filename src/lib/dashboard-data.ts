@@ -18,37 +18,44 @@ export async function getDashboardData() {
   const today = startOfUtcDay(new Date());
   const thirtyDaysAgo = daysAgo(29);
 
-  const [todayUsage, activeAccounts, anomaliesToday, dailyUsages, accounts] = await Promise.all([
-    prisma.dailyUsage.aggregate({
-      where: { date: today },
-      _sum: { usage: true, resetCount: true },
-    }),
-    prisma.seedanceAccount.count(),
-    prisma.anomalyEvent.count({
-      where: { fetchedAt: { gte: today } },
-    }),
-    prisma.dailyUsage.findMany({
-      where: { date: { gte: thirtyDaysAgo } },
-      orderBy: [{ date: 'asc' }, { accountName: 'asc' }],
-    }),
-    prisma.seedanceAccount.findMany({
-      orderBy: { name: 'asc' },
-      include: {
-        snapshots: {
-          orderBy: { fetchedAt: 'desc' },
-          take: 1,
+  const [todayUsageResult, activeAccountsResult, anomaliesTodayResult, dailyUsagesResult, accountsResult] =
+    await Promise.allSettled([
+      prisma.dailyUsage.aggregate({
+        where: { date: today },
+        _sum: { usage: true, resetCount: true },
+      }),
+      prisma.seedanceAccount.count(),
+      prisma.anomalyEvent.count({
+        where: { fetchedAt: { gte: today } },
+      }),
+      prisma.dailyUsage.findMany({
+        where: { date: { gte: thirtyDaysAgo } },
+        orderBy: [{ date: 'asc' }, { accountName: 'asc' }],
+      }),
+      prisma.seedanceAccount.findMany({
+        orderBy: { name: 'asc' },
+        include: {
+          snapshots: {
+            orderBy: { fetchedAt: 'desc' },
+            take: 1,
+          },
+          dailyUsages: {
+            where: { date: today },
+            take: 1,
+          },
+          anomalies: {
+            where: { fetchedAt: { gte: today } },
+            take: 1,
+          },
         },
-        dailyUsages: {
-          where: { date: today },
-          take: 1,
-        },
-        anomalies: {
-          where: { fetchedAt: { gte: today } },
-          take: 1,
-        },
-      },
-    }),
-  ]);
+      }),
+    ]);
+
+  const todayUsage = todayUsageResult.status === 'fulfilled' ? todayUsageResult.value : { _sum: { usage: null, resetCount: null } };
+  const activeAccounts = activeAccountsResult.status === 'fulfilled' ? activeAccountsResult.value : 0;
+  const anomaliesToday = anomaliesTodayResult.status === 'fulfilled' ? anomaliesTodayResult.value : 0;
+  const dailyUsages = dailyUsagesResult.status === 'fulfilled' ? dailyUsagesResult.value : [];
+  const accounts = accountsResult.status === 'fulfilled' ? accountsResult.value : [];
 
   const trendByDate = new Map<string, { date: string; usage: number; resetCount: number }>();
 
